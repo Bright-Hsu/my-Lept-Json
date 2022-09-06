@@ -215,7 +215,7 @@ static int lept_parse_array(lept_context* c, lept_value* v) {
         lept_set_array(v, 0);
         return LEPT_PARSE_OK;
     }
-    for (;;) {
+    while (1) {
         lept_value e;
         lept_init(&e);
         if ((ret = lept_parse_value(c, &e)) != LEPT_PARSE_OK)
@@ -240,8 +240,9 @@ static int lept_parse_array(lept_context* c, lept_value* v) {
         }
     }
     /* Pop and free values on the stack */
-    for (i = 0; i < size; i++)
+    for (i = 0; i < size; i++){
         lept_free((lept_value*)lept_context_pop(c, sizeof(lept_value)));
+    }
     return ret;
 }
 

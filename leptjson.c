@@ -259,7 +259,7 @@ static int lept_parse_object(lept_context* c, lept_value* v) {
     }
     m.k = NULL;
     size = 0;
-    for (;;) {
+    while (1) {
         char* str;
         lept_init(&m.v);
         /* parse key */

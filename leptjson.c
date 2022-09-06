@@ -197,8 +197,9 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
     int ret;
     char* s;
     size_t len;
-    if ((ret = lept_parse_string_raw(c, &s, &len)) == LEPT_PARSE_OK)
+    if ((ret = lept_parse_string_raw(c, &s, &len)) == LEPT_PARSE_OK){
         lept_set_string(v, s, len);
+    }
     return ret;
 }
 

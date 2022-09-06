@@ -145,7 +145,7 @@ static int lept_parse_string_raw(lept_context* c, char** str, size_t* len) {
     const char* p;
     EXPECT(c, '\"');
     p = c->json;
-    for (;;) {
+    while (1) {
         char ch = *p++;
         switch (ch) {
             case '\"':

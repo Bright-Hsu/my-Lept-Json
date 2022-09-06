@@ -417,8 +417,9 @@ char* lept_stringify(const lept_value* v, size_t* length) {
     c.stack = (char*)malloc(c.size = LEPT_PARSE_STRINGIFY_INIT_SIZE);
     c.top = 0;
     lept_stringify_value(&c, v);
-    if (length)
+    if (length) {
         *length = c.top;
+    }
     PUTC(&c, '\0');
     return c.stack;
 }
@@ -491,8 +492,9 @@ lept_type lept_get_type(const lept_value* v) {
 int lept_is_equal(const lept_value* lhs, const lept_value* rhs) {
     size_t i;
     assert(lhs != NULL && rhs != NULL);
-    if (lhs->type != rhs->type)
+    if (lhs->type != rhs->type){
         return 0;
+    }
     switch (lhs->type) {
         case LEPT_STRING:
             return lhs->u.s.len == rhs->u.s.len && 

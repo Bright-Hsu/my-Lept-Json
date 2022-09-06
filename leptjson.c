@@ -34,10 +34,12 @@ static void* lept_context_push(lept_context* c, size_t size) {
     void* ret;
     assert(size > 0);
     if (c->top + size >= c->size) {
-        if (c->size == 0)
+        if (c->size == 0){
             c->size = LEPT_PARSE_STACK_INIT_SIZE;
-        while (c->top + size >= c->size)
+        }
+        while (c->top + size >= c->size){
             c->size += c->size >> 1;  /* c->size * 1.5 */
+        }
         c->stack = (char*)realloc(c->stack, c->size);
     }
     ret = c->stack + c->top;
@@ -52,17 +54,20 @@ static void* lept_context_pop(lept_context* c, size_t size) {
 
 static void lept_parse_whitespace(lept_context* c) {
     const char *p = c->json;
-    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'){
         p++;
+    }
     c->json = p;
 }
 
 static int lept_parse_literal(lept_context* c, lept_value* v, const char* literal, lept_type type) {
     size_t i;
     EXPECT(c, literal[0]);
-    for (i = 0; literal[i + 1]; i++)
-        if (c->json[i] != literal[i + 1])
+    for (i = 0; literal[i + 1]; i++){
+        if (c->json[i] != literal[i + 1]){
             return LEPT_PARSE_INVALID_VALUE;
+        }
+    }
     c->json += i;
     v->type = type;
     return LEPT_PARSE_OK;
@@ -89,8 +94,9 @@ static int lept_parse_number(lept_context* c, lept_value* v) {
     }
     errno = 0;
     v->u.n = strtod(c->json, NULL);
-    if (errno == ERANGE && (v->u.n == HUGE_VAL || v->u.n == -HUGE_VAL))
+    if (errno == ERANGE && (v->u.n == HUGE_VAL || v->u.n == -HUGE_VAL)){
         return LEPT_PARSE_NUMBER_TOO_BIG;
+    }
     v->type = LEPT_NUMBER;
     c->json = p;
     return LEPT_PARSE_OK;

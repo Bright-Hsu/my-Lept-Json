@@ -30,14 +30,14 @@ typedef struct {
     size_t size, top;
 }lept_context;
 
-static void* lept_context_push(lept_context* c, size_t size) {
-    void* ret;
+static char* lept_context_push(lept_context* c, size_t size) {
+    char* ret;
     assert(size > 0);
     if (c->top + size >= c->size) {
-        if (c->size == 0){
+        if (c->size == 0) {
             c->size = LEPT_PARSE_STACK_INIT_SIZE;
         }
-        while (c->top + size >= c->size){
+        while (c->top + size >= c->size) {
             c->size += c->size >> 1;  /* c->size * 1.5 */
         }
         c->stack = (char*)realloc(c->stack, c->size);
@@ -47,14 +47,14 @@ static void* lept_context_push(lept_context* c, size_t size) {
     return ret;
 }
 
-static void* lept_context_pop(lept_context* c, size_t size) {
+static char* lept_context_pop(lept_context* c, size_t size) {
     assert(c->top >= size);
     return c->stack + (c->top -= size);
 }
 
 static void lept_parse_whitespace(lept_context* c) {
-    const char *p = c->json;
-    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'){
+    const char* p = c->json;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
         p++;
     }
     c->json = p;
@@ -63,8 +63,8 @@ static void lept_parse_whitespace(lept_context* c) {
 static int lept_parse_literal(lept_context* c, lept_value* v, const char* literal, lept_type type) {
     size_t i;
     EXPECT(c, literal[0]);
-    for (i = 0; literal[i + 1]; i++){
-        if (c->json[i] != literal[i + 1]){
+    for (i = 0; literal[i + 1]; i++) {
+        if (c->json[i] != literal[i + 1]) {
             return LEPT_PARSE_INVALID_VALUE;
         }
     }
@@ -94,7 +94,7 @@ static int lept_parse_number(lept_context* c, lept_value* v) {
     }
     errno = 0;
     v->u.n = strtod(c->json, NULL);
-    if (errno == ERANGE && (v->u.n == HUGE_VAL || v->u.n == -HUGE_VAL)){
+    if (errno == ERANGE && (v->u.n == HUGE_VAL || v->u.n == -HUGE_VAL)) {
         return LEPT_PARSE_NUMBER_TOO_BIG;
     }
     v->type = LEPT_NUMBER;
@@ -108,7 +108,7 @@ static const char* lept_parse_hex4(const char* p, unsigned* u) {
     for (i = 0; i < 4; i++) {
         char ch = *p++;
         *u <<= 4;
-        if      (ch >= '0' && ch <= '9')  *u |= ch - '0';
+        if (ch >= '0' && ch <= '9')  *u |= ch - '0';
         else if (ch >= 'A' && ch <= 'F')  *u |= ch - ('A' - 10);
         else if (ch >= 'a' && ch <= 'f')  *u |= ch - ('a' - 10);
         else return NULL;
@@ -117,23 +117,23 @@ static const char* lept_parse_hex4(const char* p, unsigned* u) {
 }
 
 static void lept_encode_utf8(lept_context* c, unsigned u) {
-    if (u <= 0x7F) 
+    if (u <= 0x7F)
         PUTC(c, u & 0xFF);
     else if (u <= 0x7FF) {
         PUTC(c, 0xC0 | ((u >> 6) & 0xFF));
-        PUTC(c, 0x80 | ( u       & 0x3F));
+        PUTC(c, 0x80 | (u & 0x3F));
     }
     else if (u <= 0xFFFF) {
         PUTC(c, 0xE0 | ((u >> 12) & 0xFF));
-        PUTC(c, 0x80 | ((u >>  6) & 0x3F));
-        PUTC(c, 0x80 | ( u        & 0x3F));
+        PUTC(c, 0x80 | ((u >> 6) & 0x3F));
+        PUTC(c, 0x80 | (u & 0x3F));
     }
     else {
         assert(u <= 0x10FFFF);
         PUTC(c, 0xF0 | ((u >> 18) & 0xFF));
         PUTC(c, 0x80 | ((u >> 12) & 0x3F));
-        PUTC(c, 0x80 | ((u >>  6) & 0x3F));
-        PUTC(c, 0x80 | ( u        & 0x3F));
+        PUTC(c, 0x80 | ((u >> 6) & 0x3F));
+        PUTC(c, 0x80 | (u & 0x3F));
     }
 }
 
@@ -148,47 +148,47 @@ static int lept_parse_string_raw(lept_context* c, char** str, size_t* len) {
     while (1) {
         char ch = *p++;
         switch (ch) {
-            case '\"':
-                *len = c->top - head;
-                *str = lept_context_pop(c, *len);
-                c->json = p;
-                return LEPT_PARSE_OK;
-            case '\\':
-                switch (*p++) {
-                    case '\"': PUTC(c, '\"'); break;
-                    case '\\': PUTC(c, '\\'); break;
-                    case '/':  PUTC(c, '/' ); break;
-                    case 'b':  PUTC(c, '\b'); break;
-                    case 'f':  PUTC(c, '\f'); break;
-                    case 'n':  PUTC(c, '\n'); break;
-                    case 'r':  PUTC(c, '\r'); break;
-                    case 't':  PUTC(c, '\t'); break;
-                    case 'u':
-                        if (!(p = lept_parse_hex4(p, &u)))
-                            STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
-                        if (u >= 0xD800 && u <= 0xDBFF) { /* surrogate pair */
-                            if (*p++ != '\\')
-                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
-                            if (*p++ != 'u')
-                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
-                            if (!(p = lept_parse_hex4(p, &u2)))
-                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
-                            if (u2 < 0xDC00 || u2 > 0xDFFF)
-                                STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
-                            u = (((u - 0xD800) << 10) | (u2 - 0xDC00)) + 0x10000;
-                        }
-                        lept_encode_utf8(c, u);
-                        break;
-                    default:
-                        STRING_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE);
+        case '\"':
+            *len = c->top - head;
+            *str = lept_context_pop(c, *len);
+            c->json = p;
+            return LEPT_PARSE_OK;
+        case '\\':
+            switch (*p++) {
+            case '\"': PUTC(c, '\"'); break;
+            case '\\': PUTC(c, '\\'); break;
+            case '/':  PUTC(c, '/'); break;
+            case 'b':  PUTC(c, '\b'); break;
+            case 'f':  PUTC(c, '\f'); break;
+            case 'n':  PUTC(c, '\n'); break;
+            case 'r':  PUTC(c, '\r'); break;
+            case 't':  PUTC(c, '\t'); break;
+            case 'u':
+                if (!(p = lept_parse_hex4(p, &u)))
+                    STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
+                if (u >= 0xD800 && u <= 0xDBFF) { /* surrogate pair */
+                    if (*p++ != '\\')
+                        STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                    if (*p++ != 'u')
+                        STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                    if (!(p = lept_parse_hex4(p, &u2)))
+                        STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
+                    if (u2 < 0xDC00 || u2 > 0xDFFF)
+                        STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_SURROGATE);
+                    u = (((u - 0xD800) << 10) | (u2 - 0xDC00)) + 0x10000;
                 }
+                lept_encode_utf8(c, u);
                 break;
-            case '\0':
-                STRING_ERROR(LEPT_PARSE_MISS_QUOTATION_MARK);
             default:
-                if ((unsigned char)ch < 0x20)
-                    STRING_ERROR(LEPT_PARSE_INVALID_STRING_CHAR);
-                PUTC(c, ch);
+                STRING_ERROR(LEPT_PARSE_INVALID_STRING_ESCAPE);
+            }
+            break;
+        case '\0':
+            STRING_ERROR(LEPT_PARSE_MISS_QUOTATION_MARK);
+        default:
+            if ((unsigned char)ch < 0x20)
+                STRING_ERROR(LEPT_PARSE_INVALID_STRING_CHAR);
+            PUTC(c, ch);
         }
     }
 }
@@ -197,7 +197,7 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
     int ret;
     char* s;
     size_t len;
-    if ((ret = lept_parse_string_raw(c, &s, &len)) == LEPT_PARSE_OK){
+    if ((ret = lept_parse_string_raw(c, &s, &len)) == LEPT_PARSE_OK) {
         lept_set_string(v, s, len);
     }
     return ret;
@@ -240,7 +240,7 @@ static int lept_parse_array(lept_context* c, lept_value* v) {
         }
     }
     /* Pop and free values on the stack */
-    for (i = 0; i < size; i++){
+    for (i = 0; i < size; i++) {
         lept_free((lept_value*)lept_context_pop(c, sizeof(lept_value)));
     }
     return ret;
@@ -316,14 +316,14 @@ static int lept_parse_object(lept_context* c, lept_value* v) {
 
 static int lept_parse_value(lept_context* c, lept_value* v) {
     switch (*c->json) {
-        case 't':  return lept_parse_literal(c, v, "true", LEPT_TRUE);
-        case 'f':  return lept_parse_literal(c, v, "false", LEPT_FALSE);
-        case 'n':  return lept_parse_literal(c, v, "null", LEPT_NULL);
-        default:   return lept_parse_number(c, v);
-        case '"':  return lept_parse_string(c, v);
-        case '[':  return lept_parse_array(c, v);
-        case '{':  return lept_parse_object(c, v);
-        case '\0': return LEPT_PARSE_EXPECT_VALUE;
+    case 't':  return lept_parse_literal(c, v, "true", LEPT_TRUE);
+    case 'f':  return lept_parse_literal(c, v, "false", LEPT_FALSE);
+    case 'n':  return lept_parse_literal(c, v, "null", LEPT_NULL);
+    default:   return lept_parse_number(c, v);
+    case '"':  return lept_parse_string(c, v);
+    case '[':  return lept_parse_array(c, v);
+    case '{':  return lept_parse_object(c, v);
+    case '\0': return LEPT_PARSE_EXPECT_VALUE;
     }
 }
 
@@ -351,28 +351,28 @@ int lept_parse(lept_value* v, const char* json) {
 static void lept_stringify_string(lept_context* c, const char* s, size_t len) {
     static const char hex_digits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
     size_t i, size;
-    char* head, *p;
+    char* head, * p;
     assert(s != NULL);
     p = head = lept_context_push(c, size = len * 6 + 2); /* "\u00xx..." */
     *p++ = '"';
     for (i = 0; i < len; i++) {
         unsigned char ch = (unsigned char)s[i];
         switch (ch) {
-            case '\"': *p++ = '\\'; *p++ = '\"'; break;
-            case '\\': *p++ = '\\'; *p++ = '\\'; break;
-            case '\b': *p++ = '\\'; *p++ = 'b';  break;
-            case '\f': *p++ = '\\'; *p++ = 'f';  break;
-            case '\n': *p++ = '\\'; *p++ = 'n';  break;
-            case '\r': *p++ = '\\'; *p++ = 'r';  break;
-            case '\t': *p++ = '\\'; *p++ = 't';  break;
-            default:
-                if (ch < 0x20) {
-                    *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
-                    *p++ = hex_digits[ch >> 4];
-                    *p++ = hex_digits[ch & 15];
-                }
-                else
-                    *p++ = s[i];
+        case '\"': *p++ = '\\'; *p++ = '\"'; break;
+        case '\\': *p++ = '\\'; *p++ = '\\'; break;
+        case '\b': *p++ = '\\'; *p++ = 'b';  break;
+        case '\f': *p++ = '\\'; *p++ = 'f';  break;
+        case '\n': *p++ = '\\'; *p++ = 'n';  break;
+        case '\r': *p++ = '\\'; *p++ = 'r';  break;
+        case '\t': *p++ = '\\'; *p++ = 't';  break;
+        default:
+            if (ch < 0x20) {
+                *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
+                *p++ = hex_digits[ch >> 4];
+                *p++ = hex_digits[ch & 15];
+            }
+            else
+                *p++ = s[i];
         }
     }
     *p++ = '"';
@@ -382,32 +382,32 @@ static void lept_stringify_string(lept_context* c, const char* s, size_t len) {
 static void lept_stringify_value(lept_context* c, const lept_value* v) {
     size_t i;
     switch (v->type) {
-        case LEPT_NULL:   PUTS(c, "null",  4); break;
-        case LEPT_FALSE:  PUTS(c, "false", 5); break;
-        case LEPT_TRUE:   PUTS(c, "true",  4); break;
-        case LEPT_NUMBER: c->top -= 32 - sprintf(lept_context_push(c, 32), "%.17g", v->u.n); break;
-        case LEPT_STRING: lept_stringify_string(c, v->u.s.s, v->u.s.len); break;
-        case LEPT_ARRAY:
-            PUTC(c, '[');
-            for (i = 0; i < v->u.a.size; i++) {
-                if (i > 0)
-                    PUTC(c, ',');
-                lept_stringify_value(c, &v->u.a.e[i]);
-            }
-            PUTC(c, ']');
-            break;
-        case LEPT_OBJECT:
-            PUTC(c, '{');
-            for (i = 0; i < v->u.o.size; i++) {
-                if (i > 0)
-                    PUTC(c, ',');
-                lept_stringify_string(c, v->u.o.m[i].k, v->u.o.m[i].klen);
-                PUTC(c, ':');
-                lept_stringify_value(c, &v->u.o.m[i].v);
-            }
-            PUTC(c, '}');
-            break;
-        default: assert(0 && "invalid type");
+    case LEPT_NULL:   PUTS(c, "null", 4); break;
+    case LEPT_FALSE:  PUTS(c, "false", 5); break;
+    case LEPT_TRUE:   PUTS(c, "true", 4); break;
+    case LEPT_NUMBER: c->top -= 32 - sprintf(lept_context_push(c, 32), "%.17g", v->u.n); break;
+    case LEPT_STRING: lept_stringify_string(c, v->u.s.s, v->u.s.len); break;
+    case LEPT_ARRAY:
+        PUTC(c, '[');
+        for (i = 0; i < v->u.a.size; i++) {
+            if (i > 0)
+                PUTC(c, ',');
+            lept_stringify_value(c, &v->u.a.e[i]);
+        }
+        PUTC(c, ']');
+        break;
+    case LEPT_OBJECT:
+        PUTC(c, '{');
+        for (i = 0; i < v->u.o.size; i++) {
+            if (i > 0)
+                PUTC(c, ',');
+            lept_stringify_string(c, v->u.o.m[i].k, v->u.o.m[i].klen);
+            PUTC(c, ':');
+            lept_stringify_value(c, &v->u.o.m[i].v);
+        }
+        PUTC(c, '}');
+        break;
+    default: assert(0 && "invalid type");
     }
 }
 
@@ -427,19 +427,19 @@ char* lept_stringify(const lept_value* v, size_t* length) {
 void lept_copy(lept_value* dst, const lept_value* src) {
     assert(src != NULL && dst != NULL && src != dst);
     switch (src->type) {
-        case LEPT_STRING:
-            lept_set_string(dst, src->u.s.s, src->u.s.len);
-            break;
-        case LEPT_ARRAY:
-            /* \todo */
-            break;
-        case LEPT_OBJECT:
-            /* \todo */
-            break;
-        default:
-            lept_free(dst);
-            memcpy(dst, src, sizeof(lept_value));
-            break;
+    case LEPT_STRING:
+        lept_set_string(dst, src->u.s.s, src->u.s.len);
+        break;
+    case LEPT_ARRAY:
+        /* \todo */
+        break;
+    case LEPT_OBJECT:
+        /* \todo */
+        break;
+    default:
+        lept_free(dst);
+        memcpy(dst, src, sizeof(lept_value));
+        break;
     }
 }
 
@@ -455,7 +455,7 @@ void lept_swap(lept_value* lhs, lept_value* rhs) {
     if (lhs != rhs) {
         lept_value temp;
         memcpy(&temp, lhs, sizeof(lept_value));
-        memcpy(lhs,   rhs, sizeof(lept_value));
+        memcpy(lhs, rhs, sizeof(lept_value));
         memcpy(rhs, &temp, sizeof(lept_value));
     }
 }
@@ -464,22 +464,22 @@ void lept_free(lept_value* v) {
     size_t i;
     assert(v != NULL);
     switch (v->type) {
-        case LEPT_STRING:
-            free(v->u.s.s);
-            break;
-        case LEPT_ARRAY:
-            for (i = 0; i < v->u.a.size; i++)
-                lept_free(&v->u.a.e[i]);
-            free(v->u.a.e);
-            break;
-        case LEPT_OBJECT:
-            for (i = 0; i < v->u.o.size; i++) {
-                free(v->u.o.m[i].k);
-                lept_free(&v->u.o.m[i].v);
-            }
-            free(v->u.o.m);
-            break;
-        default: break;
+    case LEPT_STRING:
+        free(v->u.s.s);
+        break;
+    case LEPT_ARRAY:
+        for (i = 0; i < v->u.a.size; i++)
+            lept_free(&v->u.a.e[i]);
+        free(v->u.a.e);
+        break;
+    case LEPT_OBJECT:
+        for (i = 0; i < v->u.o.size; i++) {
+            free(v->u.o.m[i].k);
+            lept_free(&v->u.o.m[i].v);
+        }
+        free(v->u.o.m);
+        break;
+    default: break;
     }
     v->type = LEPT_NULL;
 }
@@ -492,27 +492,27 @@ lept_type lept_get_type(const lept_value* v) {
 int lept_is_equal(const lept_value* lhs, const lept_value* rhs) {
     size_t i;
     assert(lhs != NULL && rhs != NULL);
-    if (lhs->type != rhs->type){
+    if (lhs->type != rhs->type) {
         return 0;
     }
     switch (lhs->type) {
-        case LEPT_STRING:
-            return lhs->u.s.len == rhs->u.s.len && 
-                memcmp(lhs->u.s.s, rhs->u.s.s, lhs->u.s.len) == 0;
-        case LEPT_NUMBER:
-            return lhs->u.n == rhs->u.n;
-        case LEPT_ARRAY:
-            if (lhs->u.a.size != rhs->u.a.size)
+    case LEPT_STRING:
+        return lhs->u.s.len == rhs->u.s.len &&
+            memcmp(lhs->u.s.s, rhs->u.s.s, lhs->u.s.len) == 0;
+    case LEPT_NUMBER:
+        return lhs->u.n == rhs->u.n;
+    case LEPT_ARRAY:
+        if (lhs->u.a.size != rhs->u.a.size)
+            return 0;
+        for (i = 0; i < lhs->u.a.size; i++)
+            if (!lept_is_equal(&lhs->u.a.e[i], &rhs->u.a.e[i]))
                 return 0;
-            for (i = 0; i < lhs->u.a.size; i++)
-                if (!lept_is_equal(&lhs->u.a.e[i], &rhs->u.a.e[i]))
-                    return 0;
-            return 1;
-        case LEPT_OBJECT:
-            /* \todo */
-            return 1;
-        default:
-            return 1;
+        return 1;
+    case LEPT_OBJECT:
+        /* \todo */
+        return 1;
+    default:
+        return 1;
     }
 }
 
